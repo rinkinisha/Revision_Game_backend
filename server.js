@@ -50,26 +50,31 @@ app.get('/api/health', (req, res) => {
 app.use(notFound);
 app.use(errorHandler);
 
+app.get("/", (req, res) => {
+  res.send("Backend is working! 🚀");
+});
+
 // ── Start Server ──────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {
   console.log(`\n🚀 Revision OS Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
   
+  
   // Seed default admin if none exists
-  try {
-    const User = require('./models/User');
-    const adminCount = await User.countDocuments({ role: 'admin' });
-    if (adminCount === 0) {
-      console.log('👤 [Admin Seeding] No admin users found. Creating default admin...');
-      await User.create({
-        name: 'System Admin',
-        email: 'admin@neuronest.com',
-        password: 'adminpassword123',
-        role: 'admin'
-      });
-      console.log('✅ [Admin Seeding] Default admin created: admin@neuronest.com / adminpassword123');
-    }
-  } catch (err) {
-    console.error('❌ [Admin Seeding] Seeding failed:', err.message);
-  }
+  // try {
+  //   const User = require('./models/User');
+  //   const adminCount = await User.countDocuments({ role: 'admin' });
+  //   if (adminCount === 0) {
+  //     console.log('👤 [Admin Seeding] No admin users found. Creating default admin...');
+  //     await User.create({
+  //       name: 'System Admin',
+  //       email: 'admin@neuronest.com',
+  //       password: 'adminpassword123',
+  //       role: 'admin'
+  //     });
+  //     console.log('✅ [Admin Seeding] Default admin created: admin@neuronest.com / adminpassword123');
+  //   }
+  // } catch (err) {
+  //   console.error('❌ [Admin Seeding] Seeding failed:', err.message);
+  // }
 });
