@@ -2,7 +2,6 @@
  * server.js – Entry point for Revision OS backend
  * Initializes Express app, middleware, routes, and starts the server.
  */
-
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -17,17 +16,27 @@ dotenv.config();
 connectDB();
 
 const app = express();
-
 console.log("NODE_ENV:", process.env.NODE_ENV);
 console.log("CLIENT_URL:", process.env.CLIENT_URL);
 
-// ── Middleware ────────────────────────────────────────────────────────────────
+// ── Middleware ────────────────────────────────────────────────────────────
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'http://localhost:5173',
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? process.env.CLIENT_URL
-    : 'http://localhost:5173',
+  origin: function (origin, callback) {
+    // allow requests with no origin (e.g. curl, server-to-server, mobile apps)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS: ' + origin));
+  },
   credentials: true,
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -35,39 +44,32 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// ── Routes ────────────────────────────────────────────────────────────────────
-app.use('/api/ai',        require('./routes/aiRoutes'));
+// ── Routes ───────────────────────────────────────────────────────────────
+app.use('/api/ai',          require('./routes/aiRoutes'));
 app.use('/api/auth',        require('./routes/authRoutes'));
 app.use('/api/topics',      require('./routes/topicRoutes'));
 app.use('/api/revisions',   require('./routes/revisionRoutes'));
 app.use('/api/dashboard',   require('./routes/dashboardRoutes'));
-// ── Stage 5 & 6 ──────────────────────────────────────────────────────────────
+
+// ── Stage 5 & 6 ──────────────────────────────────────────────────────────
 app.use('/api/missions',    require('./routes/missionRoutes'));
 app.use('/api/boss-battle', require('./routes/bossBattleRoutes'));
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Revision OS API is running 🚀' });
 });
 
-app.get("/", (req, res) => {
-  res.send("Backend is working! 🚀");
+app.get('/', (req, res) => {
+  res.send('Backend is working! 🚀');
 });
 
-
-// ── Start Server ──────────────────────────────────────────────────────────────
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, async () => {
-  console.log(`\n🚀 Revision OS Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-  
-// ── Error Handling ────────────────────────────────────────────────────────────
+// ── Error Handling (must come AFTER all routes, BEFORE listen) ───────────
 app.use(notFound);
 app.use(errorHandler);
 
-
-
-
-  
-  //Seed default admin if none exists
+// ── One-time admin seeding (run as a script, not on every boot) ──────────
+async function seedDefaultAdmin() {
   try {
     const User = require('./models/User');
     const adminCount = await User.countDocuments({ role: 'admin' });
@@ -77,11 +79,27 @@ app.use(errorHandler);
         name: 'System Admin',
         email: 'admin@neuronest.com',
         password: 'adminpassword123',
-        role: 'admin'
+        role: 'admin',
       });
       console.log('✅ [Admin Seeding] Default admin created: admin@neuronest.com / adminpassword123');
     }
   } catch (err) {
     console.error('❌ [Admin Seeding] Seeding failed:', err.message);
   }
-});
+}
+
+// ── Start Server ───────────────────────────────────────────────────────
+const PORT = process.env.PORT || 5000;
+
+if (process.env.NODE_ENV !== 'production') {
+  // Local dev: run a normal long-lived server
+  app.listen(PORT, async () => {
+    console.log(`\n🚀 Revision OS Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+    await seedDefaultAdmin();
+  });
+} else {
+  // Production on Vercel: seed once per cold start, don't call app.listen
+  seedDefaultAdmin();
+}
+
+module.exports = app;
